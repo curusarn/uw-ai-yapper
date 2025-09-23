@@ -9,7 +9,7 @@ typedef int32_t sint32;
 typedef uint64_t uint64;
 typedef int64_t sint64;
 
-static const uint32 UW_VERSION = 42;
+static const uint32 UW_VERSION = 46;
 static const uint32 UW_GameTicksPerSecond = 20;
 
 typedef struct UwIds
@@ -56,34 +56,29 @@ typedef enum UwForeignPolicyEnum
 	UwForeignPolicyEnum_Enemy = 4,
 } UwForeignPolicyEnum;
 
-typedef enum UwChatTargetFlags
+typedef enum UwChatTargetEnum
 {
-	UwChatTargetFlags_None = 0,
-	UwChatTargetFlags_Server = 1 << 0,
-	UwChatTargetFlags_Direct = 1 << 1,
-	UwChatTargetFlags_Self = 1 << 2,
-	UwChatTargetFlags_Allies = 1 << 3,
-	UwChatTargetFlags_Neutral = 1 << 4,
-	UwChatTargetFlags_Enemy = 1 << 5,
-	UwChatTargetFlags_Observer = 1 << 6,
-	UwChatTargetFlags_Admin = 1 << 7,
-	UwChatTargetFlags_Players = UwChatTargetFlags_Self | UwChatTargetFlags_Allies | UwChatTargetFlags_Neutral | UwChatTargetFlags_Enemy,
-	UwChatTargetFlags_Everyone = UwChatTargetFlags_Players | UwChatTargetFlags_Observer | UwChatTargetFlags_Admin,
-} UwChatTargetFlags;
+	UwChatTargetEnum_None = 0,
+	UwChatTargetEnum_Direct = 1,
+	UwChatTargetEnum_Everyone = 2,
+	UwChatTargetEnum_Allies = 3,
+	UwChatTargetEnum_Enemies = 4,
+	UwChatTargetEnum_Observers = 5,
+} UwChatTargetEnum;
 
+typedef struct UwGameConfig UwGameConfig;
 typedef struct UwPlayerAiConfigComponent UwPlayerAiConfigComponent;
 
 uint64 uwGetLobbyId(void);
 uint64 uwGetUserId(void);
 uint16 uwGetServerPort(void);
 void uwAdminSetMapSelection(const char *path);
-void uwAdminSetGameSpeed(float speed);
-void uwAdminSetWeatherSpeed(float speed, float offset);
+void uwAdminSetGameConfig(const UwGameConfig *config);
 void uwAdminStartGame(void);
 void uwAdminTerminateGame(void);
 void uwAdminPauseGame(bool pause);
 void uwAdminSkipCutscene(void);
-void uwAdminAddAi(void);
+void uwAdminAddAi(uint32 intendedRace, float difficulty);
 void uwAdminKickPlayer(uint32 playerId);
 void uwAdminPlayerSetAdmin(uint32 playerId, bool admin);
 void uwAdminPlayerSetName(uint32 playerId, const char *name);
@@ -94,7 +89,9 @@ void uwAdminForceSetColor(uint32 forceId, float r, float g, float b);
 void uwAdminForceSetRace(uint32 forceId, uint32 raceProto);
 void uwAdminSendSuggestedCameraFocus(uint32 position);
 void uwAdminSetAutomaticSuggestedCameraFocus(bool enabled);
-void uwAdminSendChat(const char *msg, UwChatTargetFlags flags, uint32 targetId);
+void uwAdminSendChatMessageToPlayer(const char *msg, uint32 playerId);
+void uwAdminSendChatMessageToEveryone(const char *msg);
+void uwAdminSendChatCommand(const char *msg);
 void uwAdminSendPing(uint32 position, UwPingEnum ping, uint32 targetForce);
 void uwInitialize(uint32 version);
 void uwDeinitialize(void);
@@ -422,6 +419,19 @@ typedef struct UwDiplomacyProposalComponent
 	UwForeignPolicyEnum proposal;
 } UwDiplomacyProposalComponent;
 bool uwFetchDiplomacyProposalComponent(UwEntityPtr entity, UwDiplomacyProposalComponent *data);
+typedef struct UwGameConfig
+{
+	bool ranked;
+	bool diplomacy;
+	bool lockedSpeed;
+	bool cheats;
+} UwGameConfig;
+
+void uwGameConfig(UwGameConfig *config);
+
+void uwSetGameSpeed(float speed);
+void uwSetWeatherSpeed(float speed, float offset);
+
 typedef enum UwGameStateEnum
 {
 	UwGameStateEnum_None = 0,
@@ -462,7 +472,7 @@ typedef void (*UwShootingsCallbackType)(const UwShootingsArray *data);
 void uwSetShootingsCallback(UwShootingsCallbackType callback);
 typedef void (*UwForceEliminatedCallbackType)(uint32 id);
 void uwSetForceEliminatedCallback(UwForceEliminatedCallbackType callback);
-typedef void (*UwChatCallbackType)(const char *msg, uint32 sender, UwChatTargetFlags flags);
+typedef void (*UwChatCallbackType)(uint32 sender, const char *message, UwChatTargetEnum target);
 void uwSetChatCallback(UwChatCallbackType callback);
 
 typedef enum UwTaskTypeEnum
@@ -600,6 +610,8 @@ bool uwTestShootingEntities(uint32 shooterId, uint32 targetId);
 
 bool uwTestConstructionPlacement(uint32 constructionProto, uint32 position, uint32 recipeProto);
 uint32 uwFindConstructionPlacement(uint32 constructionProto, uint32 position, uint32 recipeProto);
+void uwOfferForeignPolicy(uint32 forceId, UwForeignPolicyEnum policy);
+
 typedef enum UwOverviewFlags
 {
 	UwOverviewFlags_None = 0,

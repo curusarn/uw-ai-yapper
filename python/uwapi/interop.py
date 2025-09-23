@@ -73,18 +73,13 @@ class UwForeignPolicyEnum(Enum):
     Neutral = 3
     Enemy = 4
 
-class UwChatTargetFlags(IntFlag):
+class UwChatTargetEnum(Enum):
     Nothing = 0
-    Server = 1 << 0
-    Direct = 1 << 1
-    Self = 1 << 2
-    Allies = 1 << 3
-    Neutral = 1 << 4
-    Enemy = 1 << 5
-    Observer = 1 << 6
-    Admin = 1 << 7
-    Players = Self | Allies | Neutral | Enemy
-    Everyone = Players | Observer | Admin
+    Direct = 1
+    Everyone = 2
+    Allies = 3
+    Enemies = 4
+    Observers = 5
 
 class UwUnitStateFlags(IntFlag):
     Nothing = 0
@@ -323,6 +318,13 @@ class UwDiplomacyProposalComponent:
     proposal: UwForeignPolicyEnum
 
 @dataclass
+class UwGameConfig:
+    ranked: bool
+    diplomacy: bool
+    lockedSpeed: bool
+    cheats: bool
+
+@dataclass
 class UwShootingsArray:
     data: list[int]
     count: int
@@ -425,7 +427,7 @@ Priority = UwPriorityEnum
 Ping = UwPingEnum
 PathState = UwPathStateEnum
 ForeignPolicy = UwForeignPolicyEnum
-ChatTarget = UwChatTargetFlags
+ChatTarget = UwChatTargetEnum
 ProtoComponent = UwProtoComponent
 OwnerComponent = UwOwnerComponent
 ControllerComponent = UwControllerComponent
@@ -452,6 +454,7 @@ ForceComponent = UwForceComponent
 ForceDetailsComponent = UwForceDetailsComponent
 ForeignPolicyComponent = UwForeignPolicyComponent
 DiplomacyProposalComponent = UwDiplomacyProposalComponent
+GameConfig = UwGameConfig
 GameState = UwGameStateEnum
 ShootingEvent = UwShootingEventEnum
 ShootingsArray = UwShootingsArray
@@ -479,7 +482,7 @@ UwGameStateCallbackType = Callable[[UwGameStateEnum], None]
 UwUpdateCallbackType = Callable[[bool], None]
 UwShootingsCallbackType = Callable[[UwShootingsArray], None]
 UwForceEliminatedCallbackType = Callable[[int], None]
-UwChatCallbackType = Callable[[str, int, UwChatTargetFlags], None]
+UwChatCallbackType = Callable[[int, str, UwChatTargetEnum], None]
 UwTaskCompletedCallbackType = Callable[[int, UwTaskTypeEnum], None]
 UwMapStateCallbackType = Callable[[UwMapStateEnum], None]
 
@@ -525,11 +528,9 @@ class Interop:
         path_ = self._str_pytoc(path)
         self._api.uwAdminSetMapSelection(path_)
 
-    def uwAdminSetGameSpeed(self, speed: float) -> None:
-        self._api.uwAdminSetGameSpeed(speed)
-
-    def uwAdminSetWeatherSpeed(self, speed: float, offset: float) -> None:
-        self._api.uwAdminSetWeatherSpeed(speed, offset)
+    def uwAdminSetGameConfig(self, config: UwGameConfig) -> None:
+        config_ = self._UwGameConfig_pytoc(config)
+        self._api.uwAdminSetGameConfig(config_)
 
     def uwAdminStartGame(self) -> None:
         self._api.uwAdminStartGame()
@@ -543,8 +544,8 @@ class Interop:
     def uwAdminSkipCutscene(self) -> None:
         self._api.uwAdminSkipCutscene()
 
-    def uwAdminAddAi(self) -> None:
-        self._api.uwAdminAddAi()
+    def uwAdminAddAi(self, intendedRace: int, difficulty: float) -> None:
+        self._api.uwAdminAddAi(intendedRace, difficulty)
 
     def uwAdminKickPlayer(self, playerId: int) -> None:
         self._api.uwAdminKickPlayer(playerId)
@@ -578,10 +579,17 @@ class Interop:
     def uwAdminSetAutomaticSuggestedCameraFocus(self, enabled: bool) -> None:
         self._api.uwAdminSetAutomaticSuggestedCameraFocus(enabled)
 
-    def uwAdminSendChat(self, msg: str, flags: UwChatTargetFlags, targetId: int) -> None:
+    def uwAdminSendChatMessageToPlayer(self, msg: str, playerId: int) -> None:
         msg_ = self._str_pytoc(msg)
-        flags_ = int(flags.value)
-        self._api.uwAdminSendChat(msg_, flags_, targetId)
+        self._api.uwAdminSendChatMessageToPlayer(msg_, playerId)
+
+    def uwAdminSendChatMessageToEveryone(self, msg: str) -> None:
+        msg_ = self._str_pytoc(msg)
+        self._api.uwAdminSendChatMessageToEveryone(msg_)
+
+    def uwAdminSendChatCommand(self, msg: str) -> None:
+        msg_ = self._str_pytoc(msg)
+        self._api.uwAdminSendChatCommand(msg_)
 
     def uwAdminSendPing(self, position: int, ping: UwPingEnum, targetForce: int) -> None:
         ping_ = int(ping.value)
@@ -931,6 +939,18 @@ class Interop:
         ret = bool(ret)
         return ret, data_
 
+    def uwGameConfig(self) -> UwGameConfig:
+        config = self._ffi.new("UwGameConfig *")
+        self._api.uwGameConfig(config)
+        config_ = self._UwGameConfig_ctopy(config)
+        return config_
+
+    def uwSetGameSpeed(self, speed: float) -> None:
+        self._api.uwSetGameSpeed(speed)
+
+    def uwSetWeatherSpeed(self, speed: float, offset: float) -> None:
+        self._api.uwSetWeatherSpeed(speed, offset)
+
     def uwSetGameStateCallback(self, callback: UwGameStateCallbackType) -> None:
         @self._ffi.callback("UwGameStateCallbackType")
         def c_callback(state):
@@ -975,11 +995,11 @@ class Interop:
 
     def uwSetChatCallback(self, callback: UwChatCallbackType) -> None:
         @self._ffi.callback("UwChatCallbackType")
-        def c_callback(msg, sender, flags):
-            msg = self._str_ctopy(msg)
+        def c_callback(sender, message, target):
             sender = int(sender)
-            flags = UwChatTargetFlags(flags)
-            callback(msg, sender, flags)
+            message = self._str_ctopy(message)
+            target = UwChatTargetEnum(target)
+            callback(sender, message, target)
         self._uwSetChatCallback_callback = c_callback
         self._api.uwSetChatCallback(c_callback)
 
@@ -1158,6 +1178,10 @@ class Interop:
         ret = int(ret)
         return ret
 
+    def uwOfferForeignPolicy(self, forceId: int, policy: UwForeignPolicyEnum) -> None:
+        policy_ = int(policy.value)
+        self._api.uwOfferForeignPolicy(forceId, policy_)
+
     def uwOverviewFlags(self, position: int) -> UwOverviewFlags:
         ret = self._api.uwOverviewFlags(position)
         ret = UwOverviewFlags(ret)
@@ -1294,6 +1318,17 @@ class Interop:
 
     def _UwDiplomacyProposalComponent_ctopy(self, val) -> UwDiplomacyProposalComponent:
         return UwDiplomacyProposalComponent(int(val.offeror), int(val.offeree), UwForeignPolicyEnum(val.proposal))
+
+    def _UwGameConfig_ctopy(self, val) -> UwGameConfig:
+        return UwGameConfig(bool(val.ranked), bool(val.diplomacy), bool(val.lockedSpeed), bool(val.cheats))
+
+    def _UwGameConfig_pytoc(self, val: UwGameConfig):
+        r = self._ffi.new("UwGameConfig *")
+        r.ranked = val.ranked
+        r.diplomacy = val.diplomacy
+        r.lockedSpeed = val.lockedSpeed
+        r.cheats = val.cheats
+        return r
 
     def _UwShootingsArray_ctopy(self, val) -> UwShootingsArray:
         return UwShootingsArray(list[int]([int(val.data[i]) for i in range(val.count)]), int(val.count))

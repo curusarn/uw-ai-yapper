@@ -104,6 +104,9 @@ class World:
     def policy(self, force_id: int) -> UwForeignPolicyEnum:
         return self._policies.get(force_id, UwForeignPolicyEnum.Nothing)
 
+    def offer_foreign_policy(self, force_id: int, policy: UwForeignPolicyEnum) -> None:
+        uw_interop.uwOfferForeignPolicy(force_id, policy)
+
     def _all_ids(self) -> list[int]:
         return uw_interop.uwAllEntities().ids
 

@@ -18,7 +18,7 @@ class Events:
     _update_listeners: List[Callable[[bool], None]] = []
     _shootings_listeners: List[Callable[[List[int]], None]] = []
     _force_eliminated_listeners: List[Callable[[int], None]] = []
-    _chat_listeners: List[Callable[[str, int, UwChatTargetFlags], None]] = []
+    _chat_listeners: List[Callable[[int, str, UwChatTargetEnum], None]] = []
     _tasks_index: int = 1
     _tasks_actions: Dict[int, Callable] = {}
 
@@ -60,7 +60,7 @@ class Events:
     def on_force_eliminated(self, listener: Callable[[int], None]) -> None:
         self._force_eliminated_listeners.append(listener)
 
-    def on_chat(self, listener: Callable[[str, int, UwChatTargetFlags], None]) -> None:
+    def on_chat(self, listener: Callable[[int, str, UwChatTargetEnum], None]) -> None:
         self._chat_listeners.append(listener)
 
     def shooting_control_data(self, id: int) -> ShootingControlData:
@@ -99,10 +99,10 @@ class Events:
             listener(force)
 
     def _chat_callback(
-        self, message: str, sender: int, flags: UwChatTargetFlags
+        self, sender: int, message: str, target: UwChatTargetEnum
     ) -> None:
         for listener in self._chat_listeners:
-            listener(message, sender, flags)
+            listener(sender, message, target)
 
     def _task_completed_callback(
         self, task_user_data: int, type: UwTaskTypeEnum

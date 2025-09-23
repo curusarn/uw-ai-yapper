@@ -76,6 +76,15 @@ class Game:
     def map_state(self) -> UwMapStateEnum:
         return uw_interop.uwMapState()
 
+    def game_config(self) -> UwGameConfig:
+        return uw_interop.uwGameConfig()
+
+    def set_game_speed(self, speed: float) -> None:
+        uw_interop.uwSetGameSpeed(speed)
+
+    def set_weather_speed(self, speed: float, offset: float) -> None:
+        uw_interop.uwSetWeatherSpeed(speed, offset)
+
     def performance_statistics(self) -> UwPerformanceStatistics:
         return uw_interop.uwPerformanceStatistics()
 
