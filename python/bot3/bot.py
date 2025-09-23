@@ -63,36 +63,57 @@ class ObserverBot:
         all_entities = uw_world.entities()
         report.append(f"Total Entities: {len(all_entities)}")
 
-        # Categorize entities
+        # Categorize entities by force ID and player
         force_entities = {}  # force_id -> {type -> count}
         neutral_entities = {}  # type -> count
         resource_deposits = []
+        force_info = {}  # force_id -> {player_name, steam_id, color}
 
+        # First pass: collect force and player information
+        for entity in all_entities.values():
+            # Check for player entities
+            if entity.Player:
+                player = entity.Player
+                force_id = player.force
+                if force_id != 0:
+                    if force_id not in force_info:
+                        force_info[force_id] = {
+                            'player_name': player.name,
+                            'steam_id': player.steamUserId,
+                            'color': None,
+                            'progress': player.progress
+                        }
+
+            # Check for force entities to get color
+            if entity.Force:
+                force = entity.Force
+                # Force entities don't have a force ID directly, need to get it from the entity ID
+                # For now, we'll update color info if we can match it
+                if hasattr(entity, 'id'):
+                    # Try to match this force entity with existing force info
+                    for fid in force_info.keys():
+                        if force_info[fid]['color'] is None:
+                            force_info[fid]['color'] = force.color
+                            break
+
+        # Second pass: categorize other entities
         for entity in all_entities.values():
             if entity.Proto is None:
                 continue
 
             proto_name = entity.proto().name if entity.proto() else "Unknown"
 
-            # Track by ownership
-            if entity.own():
-                force_id = uw_world.my_force_id()
+            # Get force/owner info - observer doesn't have "own" or "enemy" concept
+            if entity.Owner and entity.Owner.force != 0:
+                # Entity belongs to a force
+                force_id = entity.Owner.force
                 if force_id not in force_entities:
                     force_entities[force_id] = {}
                 if proto_name not in force_entities[force_id]:
                     force_entities[force_id][proto_name] = 0
                 force_entities[force_id][proto_name] += 1
-            elif entity.enemy():
-                # Get enemy force ID if possible
-                # For simplicity, group all enemies under "Enemy"
-                enemy_key = "Enemy"
-                if enemy_key not in force_entities:
-                    force_entities[enemy_key] = {}
-                if proto_name not in force_entities[enemy_key]:
-                    force_entities[enemy_key][proto_name] = 0
-                force_entities[enemy_key][proto_name] += 1
             else:
-                # Neutral entity
+                # Neutral entity (no owner)
                 if proto_name not in neutral_entities:
                     neutral_entities[proto_name] = 0
                 neutral_entities[proto_name] += 1
@@ -108,7 +129,24 @@ class ObserverBot:
         # Report forces
         report.append("\nFORCES:")
         for force_key, entities in force_entities.items():
-            report.append(f"  {force_key}:")
+            # Add player information if available
+            if force_key in force_info:
+                info = force_info[force_key]
+                player_name = info['player_name']
+                steam_id = info['steam_id']
+                color = info['color']
+                progress = info['progress']
+
+                color_str = ""
+                if color:
+                    # Convert color to RGB values (0-255)
+                    r, g, b = [int(c * 255) for c in color]
+                    color_name = self.rgb_to_color_name(r, g, b)
+                    color_str = f" ({color_name})"
+
+                report.append(f"  Force {force_key}: {player_name} (Steam: {steam_id}){color_str}")
+            else:
+                report.append(f"  Force {force_key}:")
 
             # Separate buildings and units
             buildings = {}
@@ -152,22 +190,64 @@ class ObserverBot:
                 pos_str = f" at {deposit['pos']}" if deposit['pos'] is not None else ""
                 report.append(f"  {deposit['name']} (ID: {deposit['id']}){pos_str}")
 
-        # Report force statistics if available
-        try:
-            if uw_world.my_force_id() != 0:  # We have a force
-                stats = uw_world.my_force_statistics()
-                if stats:
-                    report.append("\nMY FORCE STATISTICS:")
-                    report.append(f"  Combat Units: {stats.combatUnitsTotal} (Idle: {stats.combatUnitsIdle})")
-                    report.append(f"  Logistics Units: {stats.logisticsUnitsTotal} (Idle: {stats.logisticsUnitsIdle})")
-                    report.append(f"  Worker Units: {stats.workerUnitsTotal} (Idle: {stats.workerUnitsIdle})")
-        except:
-            # Observer might not have force statistics
-            pass
+        # Observer doesn't have force statistics - skip this section
 
         report.append("=" * 60)
 
         return "\n".join(report)
+
+    def rgb_to_color_name(self, r, g, b):
+        """Convert RGB values (0-255) to human-readable color names"""
+
+        # Define color ranges for common colors
+        colors = {
+            'red': (255, 0, 0),
+            'green': (0, 255, 0),
+            'blue': (0, 0, 255),
+            'yellow': (255, 255, 0),
+            'cyan': (0, 255, 255),
+            'magenta': (255, 0, 255),
+            'orange': (255, 165, 0),
+            'purple': (128, 0, 128),
+            'pink': (255, 192, 203),
+            'brown': (165, 42, 42),
+            'gray': (128, 128, 128),
+            'white': (255, 255, 255),
+            'black': (0, 0, 0)
+        }
+
+        # Calculate distance to each color
+        min_distance = float('inf')
+        closest_color = 'unknown'
+
+        for color_name, (cr, cg, cb) in colors.items():
+            # Euclidean distance in RGB space
+            distance = ((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2) ** 0.5
+            if distance < min_distance:
+                min_distance = distance
+                closest_color = color_name
+
+        # Add intensity modifiers
+        brightness = (r + g + b) / 3
+        saturation = max(r, g, b) - min(r, g, b)
+
+        # Determine intensity modifiers
+        intensity = ""
+        if brightness < 85:
+            intensity = "dark "
+        elif brightness > 170:
+            intensity = "light "
+
+        # Check for low saturation (grayish colors)
+        if saturation < 50 and closest_color not in ['gray', 'white', 'black']:
+            if brightness < 85:
+                return "dark gray"
+            elif brightness > 170:
+                return "light gray"
+            else:
+                return "gray"
+
+        return intensity + closest_color
 
     def get_brief_status(self):
         """Generate a brief status update"""
@@ -176,23 +256,32 @@ class ObserverBot:
 
         all_entities = uw_world.entities()
 
-        # Count forces
-        my_units = 0
-        enemy_units = 0
-        neutral_units = 0
+        # Count entities by force (observer perspective)
+        force_counts = {}
+        neutral_count = 0
 
         for entity in all_entities.values():
             if entity.Proto is None:
                 continue
 
-            if entity.own():
-                my_units += 1
-            elif entity.enemy():
-                enemy_units += 1
+            if entity.Owner and entity.Owner.force != 0:
+                force_id = entity.Owner.force
+                if force_id not in force_counts:
+                    force_counts[force_id] = 0
+                force_counts[force_id] += 1
             else:
-                neutral_units += 1
+                neutral_count += 1
 
-        return f"[{game_time_minutes:.1f}min] Entities: My={my_units}, Enemy={enemy_units}, Neutral={neutral_units}"
+        # Format force counts
+        force_summary = []
+        for force_id, count in sorted(force_counts.items()):
+            force_summary.append(f"Force{force_id}={count}")
+
+        if neutral_count > 0:
+            force_summary.append(f"Neutral={neutral_count}")
+
+        entities_str = ", ".join(force_summary) if force_summary else "No entities"
+        return f"[{game_time_minutes:.1f}min] Entities: {entities_str}"
 
     def on_update(self, stepping: bool):
         # Configure during session state
@@ -214,47 +303,29 @@ class ObserverBot:
         # Log setup info once when prototypes are loaded
         if not self.setup_done and len(uw_prototypes._all) > 0:
             self.setup_done = True
-            uw_game.log_info(f"Observer bot initialized - {len(uw_prototypes._all)} prototypes loaded")
+            print(f"Observer bot initialized - {len(uw_prototypes._all)} prototypes loaded")
 
             # Log map info
             if uw_game.map_state() == MapState.Loaded:
-                uw_game.log_info(f"Observing map: name='{uw_map._name}', path='{uw_map._path}'")
+                print(f"Observing map: name='{uw_map._name}', path='{uw_map._path}'")
             else:
-                uw_game.log_info(f"Map not loaded yet, state: {uw_game.map_state()}")
+                print(f"Map not loaded yet, state: {uw_game.map_state()}")
 
             # Force a full report on first observation
             self.last_full_report = current_tick - 2000
 
-        # Brief status every 100 ticks (5 seconds)
+        # Full detailed report every 100 ticks (5 seconds)
         if self.work_step % 100 == 0:
-            brief_status = self.get_brief_status()
-            uw_game.log_info(brief_status)
-
-        # Full detailed report every 2000 ticks (100 seconds / ~1.7 minutes)
-        if current_tick - self.last_full_report >= 2000:
-            self.last_full_report = current_tick
-
             detailed_report = self.get_game_overview()
-            uw_game.log_info(detailed_report)
+            print(detailed_report)
 
     def run(self):
         uw_game.log_info("Observer bot start")
 
-        # Connect to specific server and port if provided
-        if self.server and self.port:
+        if not uw_game.try_reconnect():
+            # Connect to specific server and port if provided
             uw_game.log_info(f"Connecting to server {self.server}:{self.port}")
             # Connect as observer to the specified server - using connect_direct
-            uw_game.set_connect_start_gui(True, "--observer 2")
             uw_game.connect_direct(self.server, self.port)
-        else:
-            # Follow bot2 pattern: try reconnect, then environment, then fail
-            if not uw_game.try_reconnect():
-                # Enable observer mode
-                uw_game.set_connect_start_gui(True, "--observer 2")
-                if not uw_game.connect_environment():
-                    uw_game.log_error("Failed to connect to any server")
-                    return False
-                else:
-                    uw_game.log_info("Connected to existing environment")
 
         uw_game.log_info("Observer bot done")
