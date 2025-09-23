@@ -22,30 +22,27 @@ def poll_games_api() -> Optional[List[Dict]]:
         return None
 
 def launch_bot3_observer(server: str, port: int) -> subprocess.Popen:
-    """Launch the bot3 observer directly"""
+    """Launch the bot3 observer using PowerShell"""
 
-    # Run the bot3 directly from the python directory
-    bot_script_path = "/home/simon/uw-ai-yapper/python/bot3_ai_yapper.py"
-
-    cmd = [
-        "python3",
-        bot_script_path,
-        server,
-        str(port)
+    # Use PowerShell to run the observer bot from Windows Python
+    powershell_cmd = [
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        f"Set-Location '\\\\wsl.localhost\\Ubuntu\\home\\simon\\uw-ai-yapper\\python'; python .\\main_observer.py {server} {port}"
     ]
 
-    print(f"Launching bot3 observer with command: {' '.join(cmd)}")
+    print(f"Launching bot3 observer with command: {' '.join(powershell_cmd)}")
 
     try:
         # Start the process in the background
         process = subprocess.Popen(
-            cmd,
+            powershell_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
-            universal_newlines=True,
-            cwd="/home/simon/uw-ai-yapper/python"  # Set working directory
+            universal_newlines=True
         )
 
         print(f"Bot3 observer started with PID: {process.pid}")

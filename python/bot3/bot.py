@@ -36,7 +36,7 @@ class ObserverBot:
         uw_game.log_info("Configuring Observer Bot")
         uw_game.log_info(f"Map state during config: {uw_game.map_state()}")
 
-        uw_game.set_player_name("observer-bot")
+        uw_game.set_player_name("ai-yapper")
         # DON'T join a force - remain as observer
         # uw_game.player_join_force(0)  # Commented out - this would make us a player
 
@@ -238,55 +238,23 @@ class ObserverBot:
             uw_game.log_info(detailed_report)
 
     def run(self):
-        uw_game.log_info("Observer bot starting")
+        uw_game.log_info("Observer bot start")
 
         # Connect to specific server and port if provided
         if self.server and self.port:
             uw_game.log_info(f"Connecting to server {self.server}:{self.port}")
-            # Connect as observer to the specified server
+            # Connect as observer to the specified server - using connect_direct
             uw_game.set_connect_start_gui(True, "--observer 2")
-            if not uw_game.connect_server(self.server, self.port):
-                uw_game.log_error(f"Failed to connect to server {self.server}:{self.port}")
-                return False
+            uw_game.connect_direct(self.server, self.port)
         else:
-            # Try to reconnect first, then fallback to environment
+            # Follow bot2 pattern: try reconnect, then environment, then fail
             if not uw_game.try_reconnect():
                 # Enable observer mode
                 uw_game.set_connect_start_gui(True, "--observer 2")
                 if not uw_game.connect_environment():
                     uw_game.log_error("Failed to connect to any server")
                     return False
+                else:
+                    uw_game.log_info("Connected to existing environment")
 
-        uw_game.log_info("Observer bot connected successfully")
-        return True
-
-
-def main():
-    """Main entry point that can accept server and port arguments"""
-    server = None
-    port = None
-
-    # Parse command line arguments
-    if len(sys.argv) >= 3:
-        server = sys.argv[1]
-        try:
-            port = int(sys.argv[2])
-        except ValueError:
-            uw_game.log_error(f"Invalid port number: {sys.argv[2]}")
-            return
-    elif len(sys.argv) >= 2:
-        uw_game.log_error("Usage: python bot3_ai_yapper.py [server] [port]")
-        return
-
-    # Create and run the observer bot
-    bot = ObserverBot(server, port)
-    success = bot.run()
-
-    if success:
-        uw_game.log_info("Observer bot finished")
-    else:
-        uw_game.log_error("Observer bot failed to start")
-
-
-if __name__ == "__main__":
-    main()
+        uw_game.log_info("Observer bot done")
