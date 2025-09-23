@@ -1,0 +1,17 @@
+Please implement following changes
+
+  - create a new bot3_ai_yapper.py file in ./python
+  - use python/bot2.py as a start for the bot3
+  - the bot3 should connect to a game based on passed server and port
+  - it should become an observer not a player / not join a force (see bot2 for comments explaining how)
+  - since the bot will be observer it should not control units; it should get detailed game state ready for further handling
+  - don't try to get info about your units and buildings - there won't be any
+  - remove all code that controls your units, builds buildings, sets priorities etc.
+  - reduce the "ticking frequency" - only observe game every e.g. 100 ticks
+  - print the info about game state as a nice brief report
+
+  - create ./poll_and_launch_bot.py
+  - take inspiration from ./ai_yapper.py
+  - poll last_games for new games
+  - launch the bot3 using a powershell command using server + port for the last game - see README.md for inspiration
+  - report when bot3 ends andf go back to polling 
