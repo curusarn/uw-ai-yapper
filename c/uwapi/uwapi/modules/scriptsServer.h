@@ -39,11 +39,12 @@ extern "C"
 	UNNATURAL_API void uwDestroyForce(uint32 force);
 	UNNATURAL_API void uwSetForceColor(uint32 force, float r, float g, float b);
 	UNNATURAL_API void uwSetForceFinish(uint32 force, bool winner, bool defeated);
+	UNNATURAL_API void uwSetForceRace(uint32 force, uint32 race);
 	UNNATURAL_API void uwSetForceStartingTeam(uint32 force, uint32 team);
 	UNNATURAL_API void uwSetForceStartingPosition(uint32 force, uint32 position);
 	UNNATURAL_API void uwSetForeignPolicy(uint32 force1, uint32 force2, UwForeignPolicyEnum policy);
 
-	UNNATURAL_API uint32 uwCreateAiPlayer(void);
+	UNNATURAL_API uint32 uwCreateAiPlayer(uint32 race, float difficulty);
 	UNNATURAL_API void uwSetPlayerAiConfig(uint32 player, const UwPlayerAiConfigComponent *config);
 	UNNATURAL_API void uwSetPlayerForce(uint32 player, uint32 force);
 	UNNATURAL_API void uwPlayerCamera(uint32 player, uint32 tileIndex, bool resetToDefaultZoomAndOrientation, float duration, float smooth); // use -1 to send to all players, use NaN for default values
@@ -58,7 +59,9 @@ extern "C"
 	UNNATURAL_ENTRY void uwCutsceneSkipCallback(void);
 
 	UNNATURAL_API void uwStandardVictoryConditions(bool enable);
-	UNNATURAL_API void uwSendChat(const char *msg, UwChatTargetFlags flags, uint32 targetId);
+	UNNATURAL_API void uwSendChatEveryone(const char *msg);
+	UNNATURAL_API void uwSendChatOne(const char *msg, uint32 targetId);
+	UNNATURAL_API void uwSendChatDirect(const char *msg, const uint32 targetsIds[], const uint32 targetsCount);
 	UNNATURAL_API void uwSendPing(uint32 position, UwPingEnum ping, uint32 targetForce);
 
 	UNNATURAL_API void uwPrint(const char *msg);

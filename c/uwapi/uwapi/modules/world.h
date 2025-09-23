@@ -49,6 +49,10 @@ extern "C"
 	UNNATURAL_API uint32 uwFindConstructionPlacement(uint32 constructionProto, uint32 position, uint32 owner, uint32 recipeProto); // recipeProto may be 0
 #endif
 
+#ifdef UNNATURAL_BOTS
+	UNNATURAL_API void uwOfferForeignPolicy(uint32 forceId, UwForeignPolicyEnum policy);
+#endif
+
 	// overview
 
 	typedef enum UwOverviewFlags

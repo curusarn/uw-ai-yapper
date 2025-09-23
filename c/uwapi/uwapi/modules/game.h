@@ -12,6 +12,21 @@ extern "C"
 
 #endif
 
+	// game config
+
+	typedef struct UwGameConfig
+	{
+		bool ranked;
+		bool diplomacy;
+		bool lockedSpeed;
+		bool cheats;
+	} UwGameConfig;
+
+	UNNATURAL_API void uwGameConfig(UwGameConfig *config);
+
+	UNNATURAL_API void uwSetGameSpeed(float speed);
+	UNNATURAL_API void uwSetWeatherSpeed(float speed, float offset);
+
 	// game state
 
 	typedef enum UwGameStateEnum
@@ -82,11 +97,11 @@ extern "C"
 	// chat
 
 #ifdef UNNATURAL_BOTS
-	typedef void (*UwChatCallbackType)(const char *msg, uint32 sender, UwChatTargetFlags flags);
+	typedef void (*UwChatCallbackType)(uint32 sender, const char *message, UwChatTargetEnum target);
 	UNNATURAL_API void uwSetChatCallback(UwChatCallbackType callback);
 #endif
 #ifdef UNNATURAL_SCRIPTS
-	UNNATURAL_ENTRY void uwChatCallback(const char *msg, uint32 sender, UwChatTargetFlags flags);
+	UNNATURAL_ENTRY void uwChatCallback(uint32 sender, const char *message, UwChatTargetEnum target);
 #endif
 
 	// tasks callback
