@@ -61,6 +61,13 @@ tail -f "/mnt/c/Program Files (x86)/Steam/steamapps/common/Unnatural Worlds/bin/
 3. Stepping check: `if not stepping: return`
 4. Connection sequence: `try_reconnect() -> set_connect_start_gui(True) -> connect_environment() -> connect_new_server()`
 
+## Score System in UWAPI
+- **Force total score**: `entity.Force.score` - Available on force entities (entities with Force component but no Owner)
+- **Individual unit/building scores**: `entity.proto().data.get('score', 0)` - Prototype data contains individual unit scores
+- **NO entity.Prototype.score**: Score is not directly on prototypes, it's in the data dictionary
+- **Force entities**: Entities that represent forces themselves have `entity.Force` component but no `entity.Owner`
+- **Regular entities**: Units/buildings have `entity.Owner.force` pointing to the force ID
+
 ## Game Mechanics
 
 ### Resource System

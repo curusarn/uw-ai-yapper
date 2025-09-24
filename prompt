@@ -15,3 +15,60 @@ Please implement following changes
   - poll last_games for new games
   - launch the bot3 using a powershell command using server + port for the last game - see README.md for inspiration
   - report when bot3 ends andf go back to polling 
+
+
+
+
+  Changes:
+  - Don't report Neutral entities and resource deposits every time
+  - Save locations/positions of all main bases for all forces at bot start
+  - Save locations/positions of all oil deposits (make a note in the code that there is one OIL per each resource cluster,
+  resource cluster always contains 2 metals, 1 oil, 1 aether)
+
+  Please take a look at the API library and suggest things we could be reporting.
+
+  E.g.:
+  - number of total units of each force
+  - number of total buildings of each force
+  - number of buildings that are damaged - life/hp is lower than max
+
+
+   Changes:
+  - Don't report Neutral entities and resource deposits every time
+  - Save locations/positions of all main bases for all forces at bot start
+  - Save locations/positions of all oil deposits (make a note in the code that there is one OIL per each resource cluster,
+  resource cluster always contains 2 metals, 1 oil, 1 aether)
+
+  Please take a look at the API library and suggest things we could be reporting.
+
+  E.g.:
+  - number of total units of each force
+  - number of total buildings of each force
+  - number of buildings that are damaged - life/hp is lower than max
+  - number of destryed buildings - destroyed = entity of type construction with priority disabled
+  - number of buidlings planned for construction - planned = construction type entity with priority != disabled
+  - number of total lost health - total of hp comapred to max hp for all units of given force (track for units separately)
+  -
+
+  Changes:
+  - Don't report Neutral entities and resource deposits every time
+  - Save locations/positions of all main bases for all forces at bot start
+  - Save locations/positions of all oil deposits (make a note in the code that there is one OIL per each resource cluster,
+  resource cluster always contains 2 metals, 1 oil, 1 aether)
+
+  Please take a look at the API library and suggest things we could be reporting.
+
+  E.g.:
+  - number of total units by type of each force
+  - number of total buildings by type of each force
+  - number of buildings that are damaged - life/hp is lower than max
+  - number of destryed buildings - destroyed = entity of type construction with priority disabled
+  - number of buidlings planned for construction - planned = construction type entity with priority != disabled
+  - number of total lost health - total of hp comapred to max hp for all units of given force (track for units separately)
+  - number of recipes of each type for each force
+  - distance of closest unit to any enemy main base (use saved main base positions)
+  - number of units home - e.g. <500 distance from own main base
+  - - other units are considered attacking (exclude ATVs - units with no dps)
+  - - for all attacking units calculate weighted distance to each enemy base and self
+  - - - report as "attacking specific enemy" when closer to the enemy than self an other enemies
+  - - - report as "army on the move" when generally further from own base but not close to specific enemy
