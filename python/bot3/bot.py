@@ -57,6 +57,7 @@ class ObserverBot:
         # Game state tracking for start/end messages
         self.game_start_announced = False  # Flag to ensure only one start message
         self.game_end_announced = False    # Flag to ensure only one end message
+        self.lobby_announced = False       # Flag to ensure only one lobby message
         self.previous_game_state = None    # Track game state changes
         self.game_start_time = None        # Timestamp when game started
 
@@ -126,6 +127,11 @@ class ObserverBot:
         # uw_game.player_join_force(0)  # Commented out - this would make us a player
 
         uw_game.log_info("Configuration done - remaining as observer")
+
+        # Announce lobby after configuration
+        if not self.lobby_announced:
+            self.announce_lobby()
+            self.lobby_announced = True
 
     def get_life_percentage(self, entity):
         """Calculate life percentage for an entity."""
@@ -1013,6 +1019,9 @@ class ObserverBot:
         self.report_history = []
         self.context_summary = ""
         self.last_announcement = ""
+        self.game_start_announced = False
+        self.game_end_announced = False
+        self.lobby_announced = False
         self.load_context()  # Load context specific to this game
 
     def generate_report_diff(self, new_report, old_report):
@@ -1091,7 +1100,7 @@ class ObserverBot:
                     audio_filename = news_filename.replace('.md', '.mp3')
 
                     # Create TTS audio
-                    tts = gTTS(text, lang='en')
+                    tts = gTTS(text, lang='cs')
                     print(f"TTS: Created gTTS object for text: {text[:50]}...")
 
                     # Use absolute path for temporary file in system temp directory
@@ -1197,6 +1206,36 @@ class ObserverBot:
                     context = line.strip()
 
         return announcement, context
+
+    def announce_lobby(self):
+        """Announce when entering lobby with map and player information."""
+        # Get map information using proper accessor methods
+        map_name = uw_map.name() if uw_map.name() else "neznámá mapa"
+
+        # Get player information
+        all_entities = uw_world.entities()
+        players_in_lobby = []
+
+        for entity in all_entities.values():
+            if entity.Player:
+                player = entity.Player
+                if player.force != 0:  # Exclude observer
+                    player_name = player.name if player.name else f"Hráč {player.force}"
+
+                    # Exclude admin and other observers, but include <unknown>
+                    if player_name.lower() not in ["admin", "ai-yapper", "match-admin", "match-observer"]:
+                        players_in_lobby.append(player_name)
+
+        # Create announcement in Czech
+        if len(players_in_lobby) == 0:
+            announcement = f"Už se to chystá, budeme hrát na mapě {map_name}. Ještě čekáme na všechny hráče."
+        elif len(players_in_lobby) == 1:
+            announcement = f"Už se to chystá, budeme hrát na mapě {map_name}. Hráč {players_in_lobby[0]} už je v lobby, na oponenta ještě čekáme."
+        else:
+            players_str = ", ".join(players_in_lobby[:-1]) + f" a {players_in_lobby[-1]}"
+            announcement = f"Už se to chystá, budeme hrát na mapě {map_name}. V lobby jsou: {players_str}."
+
+        self.send_special_message("LOBBY", announcement)
 
     def send_special_message(self, message_type, message_text):
         """Send special start/end game messages to TTS and news API."""
@@ -1448,10 +1487,42 @@ Based on this information, please provide:
 2. **Context**: A 1-paragraph summary of what has happened in the game so far that I can use for the next analysis. Add a small note about important reported events like eliminations to avoid repeating them.
 
 Style instructions:
+- Announcement should be in CZECH language!!!
 - Don't use "fucking bugs" in quotes
 - Don't repeat who has been eliminated over and over
 - DO NOT repeat themes, phrases, or specific information from the LAST ANNOUNCEMENT - focus on NEW developments and changes
 - If there are no significant new developments, focus on tactical positioning or strategic trends rather than repeating old information
+- Reduce use of the following phrases: "Pozor, pozor", 
+- Once in a while do a humorous remark or joke about the game state
+- Occasionally use following or similar phrases:
+    - "Ach jo", "Sakra", "No tohle", "To je síla"
+    - "Po pici" when something is greatly surprising
+    - German army references like "Blitzkrieg"
+    - "It's a bloodbath in the Garage Trip AI tournament"
+    - "Simon's AI Yapper out!" e.g. when there's nothing to say
+    - "Unnatural Worlds has never seen such a carnage"
+    - "Absolute unit"
+    - "Ladies and gentlemen, ..."
+    - "Absolute cinema"
+    - "Fire in the hole"
+- Occasionally switch to Slovak or Polish for comedic effect
+- Use idioms and sayings, e.g. "Kdo se směje naposled, ten se směje nejlíp"
+- Use colorful language and metaphors, e.g. "jako tanky na frontě", "jako v pekle"
+- Occasionally swear in German, e.g. "verdammt", "scheiße"
+
+- Occasionally, refer to people who own the forces by their real names. E.g. "To Fisa urcite nema radost" when something bad happens to SISA Bot.
+Bot Owners:
+- "Neviem kto je kto": Martin a Dominik 
+- "SISA Bot": Fisa a Risa
+- "Bot-py": Ales
+
+- Occasionally call bots by alternative names or make jokes about the names:
+- SISA Bot example names: "Bot vodni dymky", "Hookah bot"
+- SISA Bot jokes examples: "Vypada to ze je po vodni dymce", "Uz zbyl jenom kour", "Tohle je asi posledni vodni dymka", "Dojdete nekdo pro uhli"
+- "Neviem kto je kto" example names: "Vitez", "Nas tradicni vitez", "Martinuv bot"
+- "Neviem kto je kto" jokes examples: "Tady uz je jasne kdo je kdo", "Ted uz vime kdo je kdo", "Sice nevime kdo je kdo, ale uz vime kdo as vyhraje", "Tohle vypada na dalsi vyhru Martina", "Martin si asi zase mysli, ze vyhra"
+- "Bot-py" example names: "Tady si nekdo neumi zmenit default jmeno", "Alesuv bot", "Ten co si neumi zmenit jmeno"
+- "Bot-py" jokes examples: "Umi ocividne zmenit strategii, ale jmeno ne"
 
 Format your response exactly as:
 Announcement: [Your exciting announcement here]
@@ -1590,29 +1661,17 @@ Context: [Context summary for next time]"""
                 continue
 
             proto_name = entity.proto().name if entity.proto() else ""
+            proto_lower = proto_name.lower()
 
-            # Look for main base entities (control cores)
-            if "core" in proto_name.lower() and "control" in proto_name.lower():
+            # Look for main base entities (control cores or overlords)
+            if proto_lower in ["control core", "overlord"]:
                 force_id = entity.Owner.force
                 if force_id != 0 and entity.Position:
                     self.main_base_positions[force_id] = entity.Position.position
                     print(f"Saved main base for Force {force_id} at position {entity.Position.position}")
 
-        # Find oil deposit positions
-        # Resource clusters contain: 2 metals, 1 oil, 1 aether per cluster
-        for entity in all_entities.values():
-            if entity.Proto is None or entity.Owner is not None:
-                continue
-
-            proto_name = entity.proto().name if entity.proto() else ""
-
-            # Look for oil deposits
-            if "oil" in proto_name.lower() and entity.Position:
-                self.oil_deposit_positions.append(entity.Position.position)
-                print(f"Saved oil deposit '{proto_name}' at position {entity.Position.position}")
-
         self.startup_data_saved = True
-        print(f"Startup data saved: {len(self.main_base_positions)} main bases, {len(self.oil_deposit_positions)} oil deposits")
+        print(f"Startup data saved: {len(self.main_base_positions)} main bases")
         # TODO: write to file here
 
     def get_brief_status(self):
