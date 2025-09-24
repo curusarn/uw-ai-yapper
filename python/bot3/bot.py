@@ -137,30 +137,44 @@ class ObserverBot:
     def get_life_percentage(self, entity):
         """Calculate life percentage for an entity."""
 
-        # Random debug: list entity attributes (0.01% chance)
-        if random.random() < 0.1:
-            print(f"🔍 DEBUG: Entity attributes for {entity.proto().name if entity.proto() else 'unknown'}:")
-            for attr in dir(entity):
-                if not attr.startswith('_'):
-                    try:
-                        value = getattr(entity, attr)
-                        if not callable(value):
-                            print(f"  {attr}: {value}")
-                    except:
-                        print(f"  {attr}: <error accessing>")
-            print(f"Life component: {entity.Life}")
-            print(f"Life component .lofe: {entity.Life.life}")
-            print(f"Proto component: {entity.proto().data.get('life', 'N/A')}")
+        try:
+            proto_name = entity.proto().name if entity.proto() else 'Unknown'
 
-        if not entity.Life:
+            if not entity.Life:
+                print(f"🔍 DEBUG: No Life component for entity '{proto_name}'")
+                return 0
+
+            if entity.Life.life is None:
+                print(f"⚠️ WARNING: Life.life is None for entity '{proto_name}'")
+                return 0
+
+            current_life = entity.Life.life
+            max_life = entity.proto().data.get('maxLife', 0)
+
+            if max_life <= 0:
+                print(f"⚠️ WARNING: Missing or invalid maxLife ({max_life}) for entity '{proto_name}' with current life {current_life}")
+                print(f"🔍 DEBUG: Proto data keys: {list(entity.proto().data.keys()) if entity.proto() else 'None'}")
+                return 0
+
+            if current_life < 0:
+                print(f"⚠️ WARNING: Negative current life ({current_life}) for entity '{proto_name}'")
+                return 0
+
+            percentage = (float(current_life) / max_life) * 100
+
+            if percentage > 100:
+                print(f"⚠️ WARNING: Life percentage over 100% ({percentage:.1f}%) for entity '{proto_name}' (life: {current_life}, max: {max_life})")
+
+            return percentage
+
+        except Exception as e:
+            proto_name = 'Unknown'
+            try:
+                proto_name = entity.proto().name if entity.proto() else 'Unknown'
+            except:
+                pass
+            print(f"❌ ERROR: Exception in get_life_percentage for entity '{proto_name}': {e}")
             return 0
-
-        max_life = entity.proto().data.get("life", 0)
-        if max_life <= 0:
-            return 0  # No max life defined
-
-        current_life = entity.Life.life
-        return (float(current_life) / max_life) * 100
 
     def categorize_health_status(self, life_percentage):
         """Categorize health status based on life percentage."""
@@ -711,14 +725,14 @@ class ObserverBot:
                         unit_counts[unit_name] = unit_counts.get(unit_name, 0) + 1
                     units_str = ", ".join(f"{count} {self.pluralize(unit_name) if count > 1 else unit_name}"
                                         for unit_name, count in sorted(unit_counts.items()))
-                    report.append(f"      Over 50% life: {units_str}")
+                    report.append(f"      Over 50% life (<80%): {units_str}")
                 if metrics['units_by_life']['over_30_life']:
                     unit_counts = {}
                     for unit_name in metrics['units_by_life']['over_30_life']:
                         unit_counts[unit_name] = unit_counts.get(unit_name, 0) + 1
                     units_str = ", ".join(f"{count} {self.pluralize(unit_name) if count > 1 else unit_name}"
                                         for unit_name, count in sorted(unit_counts.items()))
-                    report.append(f"      Over 30% life: {units_str}")
+                    report.append(f"      Over 30% life (<50%): {units_str}")
                 if metrics['units_by_life']['almost_destroyed']:
                     unit_counts = {}
                     for unit_name in metrics['units_by_life']['almost_destroyed']:
