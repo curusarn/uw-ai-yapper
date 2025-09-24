@@ -25,22 +25,47 @@ class UwapiLibrary:
         self.dispose()
 
     def initialize(self) -> None:
-        api_def = open(
-            os.path.join(os.path.split(os.path.abspath(__file__))[0], "bots.h"), "r"
-        ).read()
+        try:
+            print("Reading bots.h...", flush=True)
+            api_def = open(
+                os.path.join(os.path.split(os.path.abspath(__file__))[0], "bots.h"), "r"
+            ).read()
 
-        steam_path = os.path.expanduser(self.library_path())
-        print("looking for uw library in: " + steam_path, flush=True)
-        os.chdir(steam_path)
+            steam_path = os.path.expanduser(self.library_path())
+            print("looking for uw library in: " + steam_path, flush=True)
 
-        self._ffi = FFI()
-        self._ffi.cdef(api_def)
-        self._api = self._ffi.dlopen(os.path.join(steam_path, self.library_name()))
+            print("Changing to library directory...", flush=True)
+            os.chdir(steam_path)
 
-        uw_interop.initialize(self._ffi, self._api)
-        uw_interop.uwInitialize(self._api.UW_VERSION)  # type: ignore
-        uw_interop.uwInitializeConsoleLogger()
-        uw_events.initialize()
+            print("Creating FFI instance...", flush=True)
+            self._ffi = FFI()
+
+            print("Defining C API...", flush=True)
+            self._ffi.cdef(api_def)
+
+            library_file = os.path.join(steam_path, self.library_name())
+            print(f"Loading library: {library_file}", flush=True)
+            self._api = self._ffi.dlopen(library_file)
+
+            print("Initializing interop...", flush=True)
+            uw_interop.initialize(self._ffi, self._api)
+
+            print(f"Calling uwInitialize with version: {self._api.UW_VERSION}", flush=True)
+            uw_interop.uwInitialize(self._api.UW_VERSION)  # type: ignore
+
+            print("Initializing console logger...", flush=True)
+            uw_interop.uwInitializeConsoleLogger()
+
+            print("Initializing events...", flush=True)
+            uw_events.initialize()
+
+            print("UwapiLibrary initialization complete!", flush=True)
+        except Exception as e:
+            print(f"UwapiLibrary initialization failed: {e}", flush=True)
+            print(f"Exception type: {type(e).__name__}", flush=True)
+            import traceback
+            traceback.print_exc()
+            raise
 
     def dispose(self) -> None:
         uw_interop.uwDeinitialize()

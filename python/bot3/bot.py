@@ -8,12 +8,12 @@ import shutil
 from datetime import datetime
 from uwapi import *
 
-# Try to import pyttsx3, but don't fail if it's not available
+# Import gTTS for text-to-speech
 try:
-    import pyttsx3
-    PYTTSX3_AVAILABLE = True
+    from gtts import gTTS
+    GTTS_AVAILABLE = True
 except ImportError:
-    PYTTSX3_AVAILABLE = False
+    GTTS_AVAILABLE = False
 
 
 class ObserverBot:
@@ -68,14 +68,7 @@ class ObserverBot:
         self.gemini_api_key = "AIzaSyDTKBca5SbNL2mjWGPuk3EubeEogN9snC8"
         self.gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
-        # Initialize text-to-speech
-        self.tts_engine = None
-        if PYTTSX3_AVAILABLE:
-            try:
-                self.tts_engine = pyttsx3.init()
-            except Exception as e:
-                print(f"Warning: Could not initialize pyttsx3: {e}")
-                self.tts_engine = None
+        # Text-to-speech using gTTS (initialized in speak_announcement method)
 
         # Generate game identifier based on connection info
         self.generate_game_id()
@@ -1085,74 +1078,90 @@ class ObserverBot:
             print(f"Error calling Gemini API: {e}")
             return None
 
-    def speak_announcement(self, text):
-        """Use text-to-speech to announce the given text."""
-        # Run TTS in separate process to avoid thread conflicts with game engine
-        import subprocess
+    def speak_announcement_with_news_file(self, text, news_filename, is_dev):
+        """Use text-to-speech and upload to match existing news file."""
         import threading
+        import tempfile
 
-        def run_tts_subprocess():
-            """Run TTS in a completely separate process to avoid game thread issues."""
-
-            # Try system TTS commands first (more reliable and thread-safe)
-            tts_methods = [
-                ["espeak", text],
-                ["spd-say", text],
-            ]
-
-            for method in tts_methods:
-                try:
-                    subprocess.run(method, check=True, timeout=10,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    print(f"🔊 TTS Success with {method[0]}")
-                    return
-                except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-                    continue
-
-            # Try festival with echo pipe
+        def run_gtts_and_upload():
+            """Generate TTS audio and upload to news API."""
             try:
-                p1 = subprocess.Popen(["echo", text], stdout=subprocess.PIPE)
-                p2 = subprocess.Popen(["festival", "--tts"], stdin=p1.stdout,
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                p1.stdout.close()
-                p2.wait(timeout=10)
-                print("🔊 TTS Success with festival")
-                return
-            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-                pass
+                if GTTS_AVAILABLE:
+                    # Create audio filename by replacing .md with .mp3
+                    audio_filename = news_filename.replace('.md', '.mp3')
 
-            # Try pyttsx3 in separate Python process to avoid threading issues
-            if PYTTSX3_AVAILABLE:
-                try:
-                    # Create a simple TTS script and run it in separate process
-                    tts_script = f'''
-import pyttsx3
-try:
-    engine = pyttsx3.init()
-    engine.say("{text.replace('"', '\\"')}")
-    engine.runAndWait()
-    print("TTS Success")
-except Exception as e:
-    print(f"TTS Error: {{e}}")
-'''
-                    result = subprocess.run([sys.executable, "-c", tts_script],
-                                          capture_output=True, timeout=15, text=True)
-                    if "TTS Success" in result.stdout:
-                        print("🔊 TTS Success with pyttsx3 (subprocess)")
+                    # Create TTS audio
+                    tts = gTTS(text, lang='en')
+                    print(f"TTS: Created gTTS object for text: {text[:50]}...")
+
+                    # Use absolute path for temporary file in system temp directory
+                    temp_dir = tempfile.gettempdir()
+                    audio_file_path = os.path.join(temp_dir, f"tts_{audio_filename}")
+                    print(f"TTS: Saving audio to absolute path: {audio_file_path}")
+
+                    # Save TTS audio to absolute path
+                    tts.save(audio_file_path)
+
+                    # Verify file exists and check size
+                    if os.path.exists(audio_file_path):
+                        file_size = os.path.getsize(audio_file_path)
+                        print(f"TTS: File created successfully, size: {file_size} bytes")
+                    else:
+                        print(f"TTS: ERROR - File not found after saving: {audio_file_path}")
                         return
-                except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                    pass
 
-            print("🔇 TTS not available, announcement:", text)
+                    # Upload the audio file
+                    try:
+                        with open(audio_file_path, 'rb') as audio_file:
+                            files = {'file': (audio_filename, audio_file, 'audio/mpeg')}
+                            print(f"TTS: Uploading to news API...")
+                            print(f"TTS: Looking for news file: {news_filename}")
 
-        # Run TTS in background thread to avoid blocking game
+                            # Build URL with dev parameter if needed
+                            url = f'https://sl.eu.ngrok.io/api/upload_news_audio?news_filename={news_filename}'
+                            if is_dev:
+                                url += '&dev=true'
+                                print("TTS: Adding dev=true parameter")
+
+                            response = requests.post(
+                                url,
+                                files=files,
+                                headers={'Authorization': 'Bearer admin'},
+                                timeout=30
+                            )
+
+                            if response.status_code in [200, 201]:
+                                print(f"TTS Success: Generated and uploaded {audio_filename}")
+                            else:
+                                print(f"TTS Upload failed: HTTP {response.status_code} - {response.text}")
+
+                    except requests.exceptions.RequestException as e:
+                        print(f"TTS Upload error: {e}")
+
+                    # Clean up temporary file
+                    try:
+                        os.unlink(audio_file_path)
+                        print(f"TTS: Cleaned up temporary file: {audio_file_path}")
+                    except Exception as cleanup_error:
+                        print(f"TTS: Failed to clean up {audio_file_path}: {cleanup_error}")
+
+                else:
+                    print("gTTS not available")
+
+            except Exception as e:
+                print(f"TTS generation error: {e}")
+                import traceback
+                traceback.print_exc()
+
+        # Run TTS generation and upload in background thread
         try:
-            tts_thread = threading.Thread(target=run_tts_subprocess, daemon=True)
+            tts_thread = threading.Thread(target=run_gtts_and_upload, daemon=True)
             tts_thread.start()
-            print(f"🎤 ANNOUNCEMENT: {text}")
+            print(f"ANNOUNCEMENT: {text}")
         except Exception as e:
-            print(f"🔇 TTS thread error: {e}")
-            print("🎤 ANNOUNCEMENT:", text)
+            print(f"TTS thread error: {e}")
+            print("ANNOUNCEMENT:", text)
+
 
     def parse_gemini_response(self, response):
         """Parse Gemini response to extract announcement and context sections."""
@@ -1191,9 +1200,8 @@ except Exception as e:
 
     def send_special_message(self, message_type, message_text):
         """Send special start/end game messages to TTS and news API."""
-        print(f"\n🎉 {message_type.upper()}: {message_text}")
-        self.speak_announcement(message_text)
-        self.send_to_news_api(message_text)
+        print(f"\n{message_type.upper()}: {message_text}")
+        self.send_to_news_api(message_text)  # This handles both news and TTS with same timestamp
 
     def check_game_state_changes(self):
         """Check for game start/end and send special messages."""
@@ -1459,10 +1467,9 @@ Context: [Context summary for next time]"""
             announcement, context = self.parse_gemini_response(response)
 
             if announcement:
-                print(f"\n🎤 ANNOUNCEMENT: {announcement}")
+                print(f"\nANNOUNCEMENT: {announcement}")
                 self.last_announcement = announcement  # Store for next iteration to avoid repetition
-                self.speak_announcement(announcement)
-                self.send_to_news_api(announcement)
+                self.send_to_news_api(announcement)  # This will handle TTS with correct filename
             else:
                 print("❌ No announcement found in response")
 
@@ -1488,7 +1495,8 @@ Context: [Context summary for next time]"""
             }
 
             # Add dev flag when connecting to localhost
-            if self.server == "127.0.0.1":
+            is_dev = self.server == "127.0.0.1"
+            if is_dev:
                 data['dev'] = True
 
             response = requests.post(
@@ -1498,8 +1506,18 @@ Context: [Context summary for next time]"""
                 timeout=10
             )
 
-            if response.status_code == 200:
-                print("✅ News API: Announcement sent successfully")
+            if response.status_code in [200, 201]:
+                # Parse the filename from the response
+                try:
+                    response_data = response.json()
+                    news_filename = response_data.get('filename')
+                    if news_filename:
+                        print(f"✅ News API: Announcement sent successfully (filename: {news_filename})")
+                        self.speak_announcement_with_news_file(announcement, news_filename, is_dev)
+                    else:
+                        print("⚠️ News API: No filename in response")
+                except (ValueError, KeyError) as e:
+                    print(f"⚠️ News API: Could not parse response: {e}")
             else:
                 print(f"⚠️ News API: HTTP {response.status_code} - {response.text}")
 
